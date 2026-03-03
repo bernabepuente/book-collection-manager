@@ -69,3 +69,8 @@ Desktop.ini
 # ============================
 *.log
 logs/
+
+# ============================
+# CI/tooling artifacts
+# ============================
+.github/java-upgrade/
