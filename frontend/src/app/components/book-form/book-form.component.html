@@ -1,0 +1,132 @@
+<div class="book-form">
+  <div class="book-form__header">
+    <h1 class="book-form__title">{{ isEditMode ? 'Edit Book' : 'Add New Book' }}</h1>
+    <button class="btn btn--secondary btn--sm" (click)="cancel()">← Back to list</button>
+  </div>
+
+  @if (errorMessage) {
+    <div class="alert alert--error" role="alert">{{ errorMessage }}</div>
+  }
+
+  <div class="card">
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+      <div class="form-grid">
+
+        <div class="form-group">
+          <label for="title">Title *</label>
+          <input
+            id="title"
+            type="text"
+            formControlName="title"
+            [class.invalid]="isFieldInvalid('title')"
+            placeholder="e.g. Clean Code"
+          />
+          @if (isFieldInvalid('title')) {
+            <span class="field-error">
+              @if (f.title.errors?.['required']) { Title is required. }
+              @if (f.title.errors?.['maxlength']) { Too long (max 255 characters). }
+            </span>
+          }
+        </div>
+
+        <div class="form-group">
+          <label for="author">Author *</label>
+          <input
+            id="author"
+            type="text"
+            formControlName="author"
+            [class.invalid]="isFieldInvalid('author')"
+            placeholder="e.g. Robert C. Martin"
+          />
+          @if (isFieldInvalid('author')) {
+            <span class="field-error">
+              @if (f.author.errors?.['required']) { Author is required. }
+            </span>
+          }
+        </div>
+
+        <div class="form-group">
+          <label for="isbn">ISBN-13 * <span class="label-hint">(13 digits, no hyphens)</span></label>
+          <input
+            id="isbn"
+            type="text"
+            formControlName="isbn"
+            [class.invalid]="isFieldInvalid('isbn')"
+            placeholder="e.g. 9780132350884"
+            maxlength="13"
+          />
+          @if (isFieldInvalid('isbn')) {
+            <span class="field-error">
+              @if (f.isbn.errors?.['required']) { ISBN is required. }
+              @if (f.isbn.errors?.['pattern']) { Must be exactly 13 digits (ISBN-13). }
+              @if (f.isbn.errors?.['duplicate']) { This ISBN is already in the collection. }
+            </span>
+          }
+        </div>
+
+        <div class="form-group">
+          <label for="publicationYear">Publication Year *</label>
+          <input
+            id="publicationYear"
+            type="number"
+            formControlName="publicationYear"
+            [class.invalid]="isFieldInvalid('publicationYear')"
+            placeholder="e.g. 2008"
+            min="1000"
+            max="2030"
+          />
+          @if (isFieldInvalid('publicationYear')) {
+            <span class="field-error">
+              @if (f.publicationYear.errors?.['required']) { Publication year is required. }
+              @if (f.publicationYear.errors?.['min']) { Year must be 1000 or later. }
+              @if (f.publicationYear.errors?.['max']) { Year cannot exceed 2030. }
+            </span>
+          }
+        </div>
+
+        <div class="form-group">
+          <label for="genre">Genre *</label>
+          <input
+            id="genre"
+            type="text"
+            formControlName="genre"
+            [class.invalid]="isFieldInvalid('genre')"
+            placeholder="e.g. Programming, Fiction, History..."
+          />
+          @if (isFieldInvalid('genre')) {
+            <span class="field-error">
+              @if (f.genre.errors?.['required']) { Genre is required. }
+            </span>
+          }
+        </div>
+
+        <div class="form-group form-group--full">
+          <label for="description">Description <span class="label-hint">(optional)</span></label>
+          <textarea
+            id="description"
+            formControlName="description"
+            [class.invalid]="isFieldInvalid('description')"
+            placeholder="A brief summary or personal notes about the book..."
+            rows="4"
+          ></textarea>
+          @if (isFieldInvalid('description')) {
+            <span class="field-error">
+              @if (f.description.errors?.['maxlength']) { Max 1000 characters. }
+            </span>
+          }
+        </div>
+      </div>
+
+      <div class="book-form__actions">
+        <button type="button" class="btn btn--secondary" (click)="cancel()">Cancel</button>
+        <button
+          type="submit"
+          class="btn btn--primary"
+          [disabled]="submitting"
+        >
+          {{ submitting ? 'Saving...' : (isEditMode ? 'Update Book' : 'Add Book') }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
