@@ -1,0 +1,82 @@
+<div class="book-list">
+  <div class="book-list__header">
+    <h1 class="book-list__title">My Books</h1>
+    <button class="btn btn--primary" (click)="addBook()">+ Add Book</button>
+  </div>
+
+  <div class="book-list__toolbar card">
+    <div class="search-wrapper">
+      <input
+        type="text"
+        placeholder="Search by title or author..."
+        [(ngModel)]="searchTerm"
+        (keyup.enter)="onSearch()"
+        class="search-input"
+        aria-label="Search books"
+      />
+      <button class="btn btn--primary btn--sm" (click)="onSearch()">Search</button>
+      @if (searchTerm) {
+        <button class="btn btn--secondary btn--sm" (click)="clearSearch()">Clear</button>
+      }
+    </div>
+  </div>
+
+  @if (errorMessage()) {
+    <div class="alert alert--error" role="alert">{{ errorMessage() }}</div>
+  }
+
+  @if (loading()) {
+    <div class="loading-state">Loading...</div>
+  } @else {
+    <div class="card table-wrapper">
+      @if (books().length === 0) {
+        <div class="empty-state">
+          @if (searchTerm) {
+            <p>No books found for "<strong>{{ searchTerm }}</strong>".</p>
+            <button class="btn btn--secondary" (click)="clearSearch()">Clear search</button>
+          } @else {
+            <p>No books yet. Add your first one!</p>
+            <button class="btn btn--primary" (click)="addBook()">+ Add Book</button>
+          }
+        </div>
+      } @else {
+        <table aria-label="Book collection">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Author</th>
+              <th>ISBN</th>
+              <th>Year</th>
+              <th>Genre</th>
+              <th class="col-actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (book of books(); track book.id) {
+              <tr>
+                <td class="td-title">{{ book.title }}</td>
+                <td>{{ book.author }}</td>
+                <td class="td-isbn">{{ book.isbn }}</td>
+                <td>{{ book.publicationYear }}</td>
+                <td><span class="genre-badge">{{ book.genre }}</span></td>
+                <td class="td-actions">
+                  <button
+                    class="btn btn--secondary btn--sm"
+                    (click)="editBook(book.id!)"
+                    [attr.aria-label]="'Edit ' + book.title"
+                  >Edit</button>
+                  <button
+                    class="btn btn--danger btn--sm"
+                    (click)="deleteBook(book)"
+                    [attr.aria-label]="'Delete ' + book.title"
+                  >Delete</button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+        <p class="results-count">{{ books().length }} book{{ books().length !== 1 ? 's' : '' }}</p>
+      }
+    </div>
+  }
+</div>

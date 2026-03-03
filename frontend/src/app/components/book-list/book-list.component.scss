@@ -1,0 +1,85 @@
+.book-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  &__title {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  &__toolbar {
+    padding: 16px;
+  }
+}
+
+.search-wrapper {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.search-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--color-bg);
+  max-width: 420px;
+
+  &:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+  }
+}
+
+.loading-state {
+  text-align: center;
+  padding: 48px;
+  color: var(--color-text-muted);
+}
+
+.td-title {
+  font-weight: 500;
+}
+
+.td-isbn {
+  font-family: monospace;
+  font-size: 13px;
+}
+
+.td-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.col-actions {
+  width: 120px;
+}
+
+.genre-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.results-count {
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  border-top: 1px solid var(--color-border);
+}
