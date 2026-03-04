@@ -78,19 +78,36 @@ book-collection-manager/
 
 ## Architecture overview
 
-`
-Browser (Angular SPA)
-        
-          HTTP/REST (localhost:8080/api)
-        
-Spring Boot app
-        
-          Spring Data JPA
-        
-H2 in-memory DB   swap for PostgreSQL in prod (just change application.properties + driver)
-`
+```
+  Browser
+  (Angular SPA – static files on Azure Static Web Apps or a CDN)
+       │
+       │  HTTPS
+       ▼
+  Azure Application Gateway  ←─ TLS termination, WAF
+       │
+       │  HTTP
+       ▼
+  Azure App Service (containerised Spring Boot)
+       │  pulls image from
+       ├──────────────────► Azure Container Registry (ACR)
+       │
+       │  JDBC
+       ▼
+  Azure Database for PostgreSQL (Flexible Server)
+```
 
-For production I'd put a reverse proxy (nginx/ALB) in front, containerise the backend with the included Dockerfile, and push to something like ECS Fargate or a plain EC2 instance. The H2 database would be replaced with an RDS PostgreSQL instance  the only change needed in the codebase is the `spring.datasource.*` properties and the driver dependency.
+**Local dev** uses H2 in-memory – no setup required. Swapping to PostgreSQL only needs a change in `application.properties` and adding the Postgres driver to `pom.xml`.
+
+**Deployment flow (Azure):**
+
+1. GitHub Actions builds the Docker image and pushes it to ACR.
+2. App Service is configured to pull from ACR (`az webapp config container set`).
+3. App Service restarts automatically on each new image tag.
+4. The Angular build output (static files) is deployed to Azure Static Web Apps via the GitHub Actions `azure/static-web-apps-deploy` action.
+5. Application Gateway sits in front of both services, handling TLS and routing `/api/*` to App Service and `/*` to the static site.
+
+See `.github/workflows/ci.yml` for the commented-out deploy job with the exact steps and required secrets.
 
 ---
 
@@ -122,7 +139,19 @@ For production I'd put a reverse proxy (nginx/ALB) in front, containerise the ba
 
 ## CI / CD
 
-The GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push to `main` or `develop`, and on PRs targeting `main`. It runs backend tests (`mvn verify`), builds the Docker image, then installs Angular dependencies, runs unit tests in headless Chrome, and builds the production bundle.
+The GitHub Actions workflow (`.github/workflows/ci.yml`) has two active jobs and one commented-out deploy job:
+
+| Job | Trigger | What it does |
+|-----|---------|-------------|
+| `backend` | every push / PR | `mvn verify` (tests + compile) → `docker build` |
+| `frontend` | every push / PR | `npm ci` → `ng test` (ChromeHeadless) → `ng build --prod` |
+| `deploy` *(commented out)* | push to `main` only | `az login` → push image to ACR → `az webapp config container set` |
+
+To activate the deploy job, create these GitHub secrets and uncomment the job:
+- `AZURE_CREDENTIALS` – service principal JSON (`az ad sp create-for-rbac --sdk-auth`)
+- `REGISTRY_LOGIN_SERVER` – ACR login server (e.g. `myregistry.azurecr.io`)
+- `REGISTRY_USERNAME` / `REGISTRY_PASSWORD` – ACR admin credentials
+- `AZURE_WEBAPP_NAME` – name of the App Service web app
 
 ---
 
