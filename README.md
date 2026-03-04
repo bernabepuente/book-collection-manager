@@ -1,6 +1,6 @@
 ﻿# Book Collection Manager
 
-A small full-stack app to manage a personal book library. Built with Spring Boot on the backend and Angular 18 on the frontend.
+A small full-stack app to manage a personal book collection. Built with Spring Boot on the backend and Angular 18 on the frontend.
 
 ---
 
@@ -8,150 +8,154 @@ A small full-stack app to manage a personal book library. Built with Spring Boot
 
 ### Backend
 
-`ash
+```bash
 cd backend
-./mvnw spring-boot:run
-`
+./mvnw spring-boot:run          # Windows: .\mvnw.cmd spring-boot:run
+```
 
-The API starts on **http://localhost:8080**. The H2 console is available at `/h2-console` (JDBC URL: `jdbc:h2:mem:books`, no password needed)  handy for a quick look at the data while developing.
+The API starts on **http://localhost:8080**.  
+The H2 console is available at `/h2-console` (JDBC URL: `jdbc:h2:mem:books`, no password)  useful to inspect data during development.
 
 ### Frontend
 
-`ash
+```bash
 cd frontend
 npm install
 npx ng serve
-`
+```
 
-Open **http://localhost:4200**. The dev server proxies nothing special; CORS is handled on the Spring side.
+Open **http://localhost:4200**. CORS is handled server-side, no proxy config needed.
 
 ### Running tests
 
-`ash
-# backend
-cd backend && ./mvnw test
+```bash
+# Backend
+cd backend && ./mvnw test           # Windows: .\mvnw.cmd test
 
-# frontend
+# Frontend
 cd frontend && npx ng test --watch=false
-`
+```
 
 ---
 
 ## Project structure
 
-`
+```
 book-collection-manager/
- backend/          Spring Boot 3 + H2 + spring-boot-starter-validation
+ backend/
     src/main/java/com/bernabe/bookcollection/
-       model/          Book entity (JPA)
-       repository/     Spring Data JPA + custom search query
-       service/        Business logic, ISBN normalisation, duplicate check
-       controller/     REST endpoints
-       exception/      Custom exceptions + @ControllerAdvice handler
-       config/         CORS configuration
-    Dockerfile          Multi-stage build (Maven  JRE-alpine)
+       model/         Book entity (JPA)
+       repository/    Spring Data JPA + title/author search
+       service/       Business logic, ISBN normalisation, duplicate check
+       controller/    REST endpoints (/api/books)
+       exception/     BookNotFoundException, DuplicateIsbnException, GlobalExceptionHandler
+       config/        CORS (allows localhost:4200)
+    Dockerfile         Multi-stage build: Maven build  eclipse-temurin:17-jre-alpine
+    pom.xml
 
- frontend/         Angular 18 standalone components, no external UI library
+ frontend/
     src/app/
-        models/         Book interface
-        services/       BookService (HttpClient)
+        models/        Book interface
+        services/      BookService (HttpClient) + spec
         components/
-            book-list/  List + search + delete
-            book-form/  Create / edit (shared component, mode from route param)
+            book-list/ List + search bar + delete (signals for state)
+            book-form/ Create/edit  same component, mode detected from route param
 
- .github/workflows/ci.yml   GitHub Actions  test & Docker build
-`
+ .github/workflows/ci.yml   GitHub Actions CI + commented Azure deploy job
+```
 
 ---
 
 ## API
 
-| Method | Path | Notes |
-|--------|------|-------|
-| GET | `/api/books` | Optional `?search=` query param |
-| GET | `/api/books/{id}` | 404 if not found |
-| POST | `/api/books` | 201 on success, 400 on validation failure, 409 on duplicate ISBN |
-| PUT | `/api/books/{id}` | 409 only if ISBN actually changed to one that already exists |
-| DELETE | `/api/books/{id}` | 204 no content |
+| Method | Path | Response |
+|--------|------|----------|
+| GET | `/api/books` | 200  array; optional `?search=` filters by title or author |
+| GET | `/api/books/{id}` | 200 or 404 |
+| POST | `/api/books` | 201 on success · 400 validation error · 409 duplicate ISBN |
+| PUT | `/api/books/{id}` | 200 · 400 · 404 · 409 (only if ISBN changed to an existing one) |
+| DELETE | `/api/books/{id}` | 204 · 404 |
 
 ---
 
-## Architecture overview
+## Architecture  cloud deployment (Azure)
 
 ```
   Browser
-  (Angular SPA – static files on Azure Static Web Apps or a CDN)
-       │
-       │  HTTPS
-       ▼
-  Azure Application Gateway  ←─ TLS termination, WAF
-       │
-       │  HTTP
-       ▼
-  Azure App Service (containerised Spring Boot)
-       │  pulls image from
-       ├──────────────────► Azure Container Registry (ACR)
-       │
-       │  JDBC
-       ▼
+  (Angular SPA  Azure Static Web Apps or CDN)
+       
+         HTTPS
+       
+  Azure Application Gateway   TLS termination, WAF
+       
+         HTTP
+       
+  Azure App Service  (containerised Spring Boot)
+         pulls image from
+        Azure Container Registry (ACR)
+       
+         JDBC / SSL
+       
   Azure Database for PostgreSQL (Flexible Server)
 ```
 
-**Local dev** uses H2 in-memory – no setup required. Swapping to PostgreSQL only needs a change in `application.properties` and adding the Postgres driver to `pom.xml`.
+**Local dev** uses H2 in-memory  zero setup. Moving to PostgreSQL only requires updating `spring.datasource.*` in `application.properties` and adding the Postgres JDBC driver to `pom.xml`.
 
-**Deployment flow (Azure):**
+**Deployment steps (Azure App Service):**
 
-1. GitHub Actions builds the Docker image and pushes it to ACR.
-2. App Service is configured to pull from ACR (`az webapp config container set`).
-3. App Service restarts automatically on each new image tag.
-4. The Angular build output (static files) is deployed to Azure Static Web Apps via the GitHub Actions `azure/static-web-apps-deploy` action.
-5. Application Gateway sits in front of both services, handling TLS and routing `/api/*` to App Service and `/*` to the static site.
+1. GitHub Actions builds the Docker image and pushes it to ACR (`docker build` + `docker push`).
+2. `az webapp config container set` updates App Service to the new image tag.
+3. App Service pulls the image and restarts automatically.
+4. Angular static output is deployed to Azure Static Web Apps via `azure/static-web-apps-deploy`.
+5. Application Gateway routes `/api/*` to App Service and `/*` to the static site.
 
-See `.github/workflows/ci.yml` for the commented-out deploy job with the exact steps and required secrets.
+See `.github/workflows/ci.yml` for the commented-out `deploy` job with exact steps and required secrets.
 
 ---
 
-## Design decisions I made along the way
+## Design decisions
 
-**ISBN-13 only**  The assignment didn't specify, but I went with 13-digit ISBNs because that's what new books ship with. I don't validate the check digit (the Luhn-like algorithm)  that felt like over-engineering for this scope, and it's easy to add later if needed.
+**ISBN-13 only**  New books ship with 13-digit ISBNs. I decided not to validate the check digit (Luhn-like algorithm)  that felt like over-engineering for this scope and is easy to add later.
 
-**ISBN normalisation in the service layer**  Before any duplicate check or database write, `BookService.normalizeIsbn()` strips hyphens and spaces. So `978-0-13-235088-4` and `9780132350884` are treated as the same book. There's a comment in the entity explaining this so future developers don't wonder why the column has only digits.
+**ISBN normalisation in the service layer**  `BookService.normalizeIsbn()` strips hyphens and spaces before any duplicate check or DB write. So `978-0-13-235088-4` and `9780132350884` are treated as the same book. There is a comment in the entity so future developers understand why the column holds only digits.
 
-**No Lombok**  I could have cut the entity down by a third with `@Data`, but I find it makes code harder to read for someone who jumps into the project cold. Explicit getters/setters make the data model obvious.
+**No Lombok**  Explicit getters/setters make the data model easier to read for someone jumping into the codebase cold. `@Data` would shorten the entity but obscure what it actually does.
 
-**Angular signals instead of NgRx**  NgRx would have been overkill for this size. Angular 18 signals give you reactive state without the ceremony, and they're now the recommended approach for simpler cases anyway.
+**Angular signals instead of NgRx**  NgRx would be overkill for three API calls. Angular 18 signals give reactive state without boilerplate and are now the recommended approach for this kind of use case.
 
-**No UI component library**  Bootstrap and Material both pull in a lot of styles I'd spend time overriding. I went with plain SCSS and CSS custom properties for colours and spacing. It's easier to tweak and shows what the CSS actually does.
+**No external UI library**  Bootstrap and Material both pull in styles I would spend time fighting. Plain SCSS with CSS custom properties gives full control and makes the design choices explicit.
 
-**Lazy loading routes**  Even with only two routes, `loadComponent` is easy to set up and is the right habit for larger apps. It costs nothing here.
+**Lazy-loaded routes**  `loadComponent` is easy to set up and is the right habit for larger apps. It costs nothing at this scale.
 
 ---
 
 ## Trade-offs and known limitations
 
-- **No authentication**  Out of scope for the assignment. Spring Security + JWT would be the obvious next step for anything real.
-- **No pagination**  The book list loads everything at once. For a personal library this is fine. For anything larger I'd add `Pageable` to the repository and a page control in the frontend.
-- **H2 is in-memory**  Data is lost on restart. Intentional for a demo; production story is above.
-- **ISBN check digit not validated**  A 13-character regex only checks the format, not the mathematical validity of the ISBN.
-- **No HTTPS locally**  The dev setup is plain HTTP. Production would terminate TLS at the load balancer.
+- **No authentication**  Adding Spring Security + JWT would be the obvious next step for a real app.
+- **No pagination**  Loading all books at once is fine for a personal library. For anything larger: `Pageable` on the repository + page controls in the frontend.
+- **H2 is in-memory**  Data resets on restart. Intentional for a demo; the production story is covered above.
+- **ISBN check digit not validated**  The regex `^\d{13}$` checks format only, not mathematical validity.
+- **No HTTPS locally**  TLS would terminate at the load balancer in production.
 
 ---
 
 ## CI / CD
 
-The GitHub Actions workflow (`.github/workflows/ci.yml`) has two active jobs and one commented-out deploy job:
+`.github/workflows/ci.yml` runs on every push to `main`/`develop` and on PRs targeting `main`.
 
-| Job | Trigger | What it does |
-|-----|---------|-------------|
-| `backend` | every push / PR | `mvn verify` (tests + compile) → `docker build` |
-| `frontend` | every push / PR | `npm ci` → `ng test` (ChromeHeadless) → `ng build --prod` |
-| `deploy` *(commented out)* | push to `main` only | `az login` → push image to ACR → `az webapp config container set` |
+| Job | What it does |
+|-----|-------------|
+| `backend` | `mvn verify` (tests + compile)  `docker build` |
+| `frontend` | `npm ci`  `ng test` (ChromeHeadless)  `ng build --configuration production` |
+| `deploy` *(commented out, main only)* | `az login`  push to ACR  `az webapp config container set` |
 
-To activate the deploy job, create these GitHub secrets and uncomment the job:
-- `AZURE_CREDENTIALS` – service principal JSON (`az ad sp create-for-rbac --sdk-auth`)
-- `REGISTRY_LOGIN_SERVER` – ACR login server (e.g. `myregistry.azurecr.io`)
-- `REGISTRY_USERNAME` / `REGISTRY_PASSWORD` – ACR admin credentials
-- `AZURE_WEBAPP_NAME` – name of the App Service web app
+Secrets required to activate the deploy job: `AZURE_CREDENTIALS`, `REGISTRY_LOGIN_SERVER`, `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`, `AZURE_WEBAPP_NAME`.
+
+---
+
+## AI usage note
+
+I used GitHub Copilot for boilerplate acceleration (JPA entity getters/setters, SCSS reset, `HttpTestingController` test scaffolding). All architectural decisions were made manually: the ISBN normalisation strategy, surfacing 409 conflicts as field-level Angular form errors, the `excludeId` pattern for update duplicate checks, the choice of signals over NgRx, and the Azure deployment design. The commit history reflects the actual development order.
 
 ---
 
